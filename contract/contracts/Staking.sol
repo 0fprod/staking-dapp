@@ -7,6 +7,7 @@ import {console} from "hardhat/console.sol";
 contract Staking {
     IERC20 public Gall;
 
+    mapping(address => uint) public stakedBalanceOf;
 
     constructor(address _gall) {
         Gall = IERC20(_gall);
@@ -25,6 +26,12 @@ contract Staking {
         return Gall.balanceOf(address(this));
     }
 
+    function stake(uint256 _amount) public {
+        // require(Gall.balanceOf(msg.sender) >= _amount, "Insufficient balance");
+
+        Gall.transferFrom(msg.sender, address(this), _amount);
+        stakedBalanceOf[msg.sender] += _amount;
+    }
 
     function getStakedAmount(address _address) public view returns (uint256) {
         return stakedBalanceOf[_address];

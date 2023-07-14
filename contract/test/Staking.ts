@@ -35,6 +35,22 @@ describe("Staking contract", function () {
     expect(await gallToken.balanceOf(deployer.address)).to.equal(TenGallTokens.sub(fiveTokens));
   });
 
+  it("allows to stake GAL tokens", async function () {
+    const { staking, gallToken, deployer } = await loadFixture(deployFixture);
+    // fund contract with 5 GAL tokens
+    const fiveTokens = ethers.utils.parseEther("5");
+    await gallToken.approve(staking.address, fiveTokens);
+    await staking.fundContractWithGall(fiveTokens)
+    // stake 2 GAL tokens
+    const twoTokens = ethers.utils.parseEther("2");
+
+    await gallToken.approve(staking.address, twoTokens);
+    await staking.stake(twoTokens);
+    expect(await staking.getContractGalBalance()).to.equal(fiveTokens.add(twoTokens));
+    expect(await gallToken.balanceOf(deployer.address)).to.equal(TenGallTokens.sub(fiveTokens).sub(twoTokens));
+    expect(await staking.getStakedAmount(deployer.address)).to.equal(twoTokens);
+
+  });
 
   it("allows to unstake GAL tokens");
   it("performs weekly payouts");
