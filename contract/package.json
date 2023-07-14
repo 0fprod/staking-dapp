@@ -5,7 +5,6 @@
     "watch": "hardhat watch test",
     "coverage": "hardhat coverage",
     "compile": "hardhat compile",
-    "dev": "hardhat watch test",
     "build": "npx thirdweb@latest detect",
     "deploy": "npx thirdweb@latest deploy",
     "release": "npx thirdweb@latest release"
