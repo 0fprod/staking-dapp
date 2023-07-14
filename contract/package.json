@@ -5,12 +5,13 @@
     "watch": "hardhat watch test",
     "coverage": "hardhat coverage",
     "compile": "hardhat compile",
-    "dev": "hardhat watch compilation",
+    "dev": "hardhat watch test",
     "build": "npx thirdweb@latest detect",
     "deploy": "npx thirdweb@latest deploy",
     "release": "npx thirdweb@latest release"
   },
   "dependencies": {
+    "@openzeppelin/contracts": "^4.9.2",
     "@thirdweb-dev/contracts": "^3"
   },
   "devDependencies": {

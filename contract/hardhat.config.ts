@@ -17,6 +17,7 @@ const config: HardhatUserConfig = {
     version: "1.3.13", // Uses latest available in https://github.com/matter-labs/zksolc-bin/
     settings: {},
   },
+  defaultNetwork: "hardhat",
   // networks
   networks: {
     hardhat: {
@@ -26,11 +27,6 @@ const config: HardhatUserConfig = {
       url: "https://testnet.era.zksync.dev",
       ethNetwork: "goerli",  // or a Goerli RPC endpoint from Infura/Alchemy/Chainstack etc.
       zksync: true,
-    },
-    goerli: {
-      url: GOERLI_RPC_URL,
-      accounts: [PRIVATE_KEY],
-      chainId: 5, // Goerli default
     },
   },
   // Tests watcher
@@ -54,7 +50,7 @@ const config: HardhatUserConfig = {
   // Gas reporter
   gasReporter: {
     currency: 'EUR',
-    enabled: true,
+    enabled: false,
     coinmarketcap: COINMARKETCAP_API_KEY,
   },
 };
