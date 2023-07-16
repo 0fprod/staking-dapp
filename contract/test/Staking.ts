@@ -8,86 +8,87 @@ describe("Staking contract", function () {
 
   async function deployErc20Fixture() {
     const gallTokenFactory = await ethers.getContractFactory("Gal");
-    const gallToken = await gallTokenFactory.deploy(TenGallTokens);
-    await gallToken.deployed();
+    const gallContract = await gallTokenFactory.deploy(TenGallTokens);
+    await gallContract.deployed();
 
-    return { gallToken };
+    return { gallContract };
   }
 
   async function deployFixture() {
     const [deployer] = await ethers.getSigners();
-    const { gallToken } = await loadFixture(deployErc20Fixture);
-    const gallTokenAddress = gallToken.address;
+    const { gallContract } = await loadFixture(deployErc20Fixture);
+    const gallTokenAddress = gallContract.address;
     const stakingFactory = await ethers.getContractFactory("Staking")
-    const staking = await stakingFactory.deploy(gallTokenAddress);
-    await printContractsInfo(staking, gallToken, deployer.address);
-    return { staking, gallToken, deployer };
+    const stakingContract = await stakingFactory.deploy(gallTokenAddress);
+    await printContractsInfo(stakingContract, gallContract, deployer.address);
+
+    return { stakingContract, gallContract, deployer };
   }
 
   describe('Fund contract with GAL tokens', function () {
     it("funds with the given amout of tokens", async function () {
-      const { staking, gallToken, deployer } = await loadFixture(deployFixture);
+      const { stakingContract, gallContract, deployer } = await loadFixture(deployFixture);
       const fiveTokens = ethers.utils.parseEther("5");
-      await gallToken.approve(staking.address, fiveTokens);
-      await staking.fundContractWithGall(fiveTokens)
+      await approveAndFundContract(stakingContract, gallContract, 5);
 
-      expect(await staking.getContractGalBalance()).to.equal(fiveTokens);
-      expect(await gallToken.balanceOf(staking.address)).to.equal(fiveTokens);
-      expect(await gallToken.balanceOf(deployer.address)).to.equal(TenGallTokens.sub(fiveTokens));
+      expect(await stakingContract.getContractGalBalance()).to.equal(fiveTokens);
+      expect(await gallContract.balanceOf(stakingContract.address)).to.equal(fiveTokens);
+      expect(await gallContract.balanceOf(deployer.address)).to.equal(TenGallTokens.sub(fiveTokens));
     });
 
     it('reverts if allowance is not enough', async function () {
-      const { staking } = await loadFixture(deployFixture);
+      const { stakingContract } = await loadFixture(deployFixture);
       const fiveTokens = ethers.utils.parseEther("5");
 
-      await expect(staking.fundContractWithGall(fiveTokens)).revertedWithCustomError(staking, "Staking__InsufficientAllowance");
+      await expect(stakingContract.fundContractWithGall(fiveTokens))
+        .revertedWithCustomError(stakingContract, "Staking__InsufficientAllowance");
     });
 
-    it('reverts if amount is not enough', async function () {
-      const { staking, gallToken } = await loadFixture(deployFixture);
+    it('reverts if balance is not enough', async function () {
+      const { stakingContract, gallContract } = await loadFixture(deployFixture);
       const twentyTokens = ethers.utils.parseEther("20");
-      await gallToken.approve(staking.address, twentyTokens);
 
-      await expect(staking.fundContractWithGall(twentyTokens)).revertedWithCustomError(staking, "Staking__InsufficientBalance");
+      await gallContract.approve(stakingContract.address, twentyTokens);
+
+      await expect(stakingContract.fundContractWithGall(twentyTokens))
+        .revertedWithCustomError(stakingContract, "Staking__InsufficientBalance");
     });
   });
 
   describe('Stake GAL tokens', function () {
     it("allows to stake GAL tokens", async function () {
-      const { staking, gallToken, deployer } = await loadFixture(deployFixture);
-      // fund contract with 5 GAL tokens
+      const { stakingContract, gallContract, deployer } = await loadFixture(deployFixture);
+      await approveAndFundContract(stakingContract, gallContract, 5)
       const fiveTokens = ethers.utils.parseEther("5");
-      await gallToken.approve(staking.address, fiveTokens);
-      await staking.fundContractWithGall(fiveTokens)
-      // stake 2 GAL tokens
       const twoTokens = ethers.utils.parseEther("2");
 
-      await gallToken.approve(staking.address, twoTokens);
-      await staking.stake(twoTokens);
-      expect(await staking.getContractGalBalance()).to.equal(fiveTokens.add(twoTokens));
-      expect(await gallToken.balanceOf(deployer.address)).to.equal(TenGallTokens.sub(fiveTokens).sub(twoTokens));
-      expect(await staking.getStakedAmount(deployer.address)).to.equal(twoTokens);
+      await gallContract.approve(stakingContract.address, twoTokens);
+      await stakingContract.stake(twoTokens);
+
+      expect(await stakingContract.getContractGalBalance()).to.equal(fiveTokens.add(twoTokens));
+      expect(await gallContract.balanceOf(deployer.address)).to.equal(TenGallTokens.sub(fiveTokens).sub(twoTokens));
+      expect(await stakingContract.getStakedAmount(deployer.address)).to.equal(twoTokens);
     });
 
     it('reverts if allowance is not enough', async function () {
-      const { staking, gallToken } = await loadFixture(deployFixture);
-      const fiveTokens = ethers.utils.parseEther("5");
-      await gallToken.approve(staking.address, fiveTokens);
-      await staking.fundContractWithGall(fiveTokens)
+      const { stakingContract, gallContract } = await loadFixture(deployFixture);
+      await approveAndFundContract(stakingContract, gallContract, 5);
       const twoTokens = ethers.utils.parseEther("2");
 
-      await expect(staking.stake(twoTokens)).revertedWithCustomError(staking, "Staking__InsufficientAllowance");
+      await expect(stakingContract.stake(twoTokens))
+        .revertedWithCustomError(stakingContract, "Staking__InsufficientAllowance");
     });
 
     it('reverts if amount is not enough', async function () {
-      const { staking, gallToken } = await loadFixture(deployFixture);
+      const { stakingContract, gallContract } = await loadFixture(deployFixture);
       const twentyTokens = ethers.utils.parseEther("20");
       const fiveTokens = ethers.utils.parseEther("5");
-      await gallToken.approve(staking.address, twentyTokens);
-      await staking.fundContractWithGall(fiveTokens)
       const sevenTokens = ethers.utils.parseEther("7");
+      await gallContract.approve(stakingContract.address, twentyTokens);
+      await stakingContract.fundContractWithGall(fiveTokens)
 
-      await expect(staking.stake(sevenTokens)).revertedWithCustomError(staking, "Staking__InsufficientBalance");
+      await expect(stakingContract.stake(sevenTokens))
+        .revertedWithCustomError(stakingContract, "Staking__InsufficientBalance");
     });
   });
 
@@ -99,13 +100,24 @@ describe("Staking contract", function () {
   it("calculates the correct amount of GAL tokens to be paid out based on the staked amount and the duration of the stake (5% APY)");
 
 
-  async function printContractsInfo(stakingContract: Staking, gallToken: Gal, deployer: string) {
+  async function printContractsInfo(stakingContract: Staking, gallContract: Gal, deployer: string) {
     console.log('Deployer address:', deployer);
     console.log('Staking contract address:', stakingContract.address);
-    console.log('Gall token address:', gallToken.address);
-    console.log("Gall decimal", await gallToken.decimals());
-    const totalSupply = await gallToken.totalSupply();
+    console.log('Gall token address:', gallContract.address);
+    console.log("Gall decimal", await gallContract.decimals());
+    const totalSupply = await gallContract.totalSupply();
     console.log('Gall total supply:', ethers.utils.formatEther(totalSupply));
-    console.log('Deployer initial balance:', ethers.utils.formatEther(await gallToken.balanceOf(deployer)));
+    console.log('Deployer initial balance:', ethers.utils.formatEther(await gallContract.balanceOf(deployer)));
+  }
+
+  async function approveAndFundContract(stakingContract: Staking, gallContract: Gal, amount: number) {
+    const tokens = ethers.utils.parseEther(`${amount}`);
+    await approveWith(gallContract, stakingContract.address, amount);
+    await stakingContract.fundContractWithGall(tokens)
+  }
+
+  async function approveWith(gallContract: Gal, address: string, amount: number) {
+    const tokens = ethers.utils.parseEther(`${amount}`);
+    await gallContract.approve(address, tokens);
   }
 });
