@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 error Staking__InsufficientAllowance();
 error Staking__InsufficientBalance();
+error Staking__InsufficientStakedBalance();
 
 contract Staking {
     IERC20 public Gall;
@@ -22,6 +23,16 @@ contract Staking {
     modifier notEnoughBalance(uint256 _amount) {
         if (_amount > Gall.balanceOf(msg.sender)) {
             revert Staking__InsufficientBalance();
+        }
+        _;
+    }
+
+    modifier notEnoughStakedBalance(uint256 _amount) {
+        if (
+            stakedBalanceOf[msg.sender] <= 0 ||
+            stakedBalanceOf[msg.sender] < _amount
+        ) {
+            revert Staking__InsufficientStakedBalance();
         }
         _;
     }
@@ -45,6 +56,12 @@ contract Staking {
     ) public notEnoughAllowance(_amount) notEnoughBalance(_amount) {
         Gall.transferFrom(msg.sender, address(this), _amount);
         stakedBalanceOf[msg.sender] += _amount;
+    }
+
+    function unstake(uint256 _amount) public notEnoughStakedBalance(_amount) {
+        Gall.approve(address(this), _amount);
+        Gall.transferFrom(address(this), msg.sender, _amount);
+        stakedBalanceOf[msg.sender] -= _amount;
     }
 
     function getStakedAmount(address _address) public view returns (uint256) {
