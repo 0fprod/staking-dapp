@@ -1,10 +1,47 @@
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture, mine } from "@nomicfoundation/hardhat-network-helpers";
 import { ethers } from "hardhat";
 import { Gal, Staking } from "../typechain-types";
 import { expect } from "chai";
 import { BigNumber } from "ethers";
 
 describe("Staking contract", function () {
+
+  async function printContractsInfo(stakingContract: Staking, gallContract: Gal, deployer: string) {
+    console.log('Deployer address:', deployer);
+    console.log('Staking contract address:', stakingContract.address);
+    console.log('Gall token address:', gallContract.address);
+    console.log("Gall decimal", await gallContract.decimals());
+    const totalSupply = await gallContract.totalSupply();
+    console.log('Gall total supply:', ethers.utils.formatEther(totalSupply));
+    console.log('Deployer initial balance:', ethers.utils.formatEther(await gallContract.balanceOf(deployer)));
+  }
+
+  async function approveAndFundContract(stakingContract: Staking, gallContract: Gal, amount: number) {
+    const tokens = tokensAmount(amount);
+    await approveWith(gallContract, stakingContract.address, amount);
+    await stakingContract.fundContractWithGall(tokens)
+  }
+
+  async function approveAndStake(stakingContract: Staking, gallContract: Gal, amount: number) {
+    const tokens = tokensAmount(amount);
+    await gallContract.approve(stakingContract.address, tokens);
+    await stakingContract.stake(tokens);
+  }
+
+  async function approveWith(gallContract: Gal, address: string, amount: number) {
+    const tokens = ethers.utils.parseEther(`${amount}`);
+    await gallContract.approve(address, tokens);
+  }
+
+  async function moveTimeForwardInWeeks(numberOfBlocks = 1) {
+    const oneWeekInSeconds = 604800;
+
+    await mine(numberOfBlocks + 1, { interval: oneWeekInSeconds });
+  }
+
+  function tokensAmount(amount: number): BigNumber {
+    return ethers.utils.parseEther(`${amount}`)
+  }
 
   async function deployErc20Fixture() {
     const TenGallTokens = tokensAmount(10);
@@ -130,20 +167,16 @@ describe("Staking contract", function () {
     })
   })
 
-  it("performs weekly payouts");
-  it("pays stakers in GAL tokens");
-  it("calculates the correct amount of GAL tokens to be paid out based on the staked amount and the duration of the stake (5% APY)");
+  describe('Reward system', () => {
 
+    it('Calculates the number of weeks since first stake', async () => {
+      const weeksPassed = 2
+      const { stakingContract, gallContract } = await loadFixture(deployFixture);
+      await approveAndStake(stakingContract, gallContract, 5);
+      await moveTimeForwardInWeeks(weeksPassed)
 
-  async function printContractsInfo(stakingContract: Staking, gallContract: Gal, deployer: string) {
-    console.log('Deployer address:', deployer);
-    console.log('Staking contract address:', stakingContract.address);
-    console.log('Gall token address:', gallContract.address);
-    console.log("Gall decimal", await gallContract.decimals());
-    const totalSupply = await gallContract.totalSupply();
-    console.log('Gall total supply:', ethers.utils.formatEther(totalSupply));
-    console.log('Deployer initial balance:', ethers.utils.formatEther(await gallContract.balanceOf(deployer)));
-  }
+      expect(await stakingContract.calculateNumberOfPayouts()).to.equal(2);
+    })
 
   async function approveAndFundContract(stakingContract: Staking, gallContract: Gal, amount: number) {
     const tokens = tokensAmount(amount);
@@ -157,10 +190,7 @@ describe("Staking contract", function () {
     await stakingContract.stake(tokens);
   }
 
-  async function approveWith(gallContract: Gal, address: string, amount: number) {
-    const tokens = ethers.utils.parseEther(`${amount}`);
-    await gallContract.approve(address, tokens);
-  }
+  });
 
   function tokensAmount(amount: number): BigNumber {
     return ethers.utils.parseEther(`${amount}`)

@@ -11,7 +11,14 @@ error Staking__InsufficientStakedBalance();
 contract Staking {
     IERC20 public Gall;
 
+    // Staked amount by address
     mapping(address => uint) public stakedBalanceOf;
+    // Time when staking started
+    mapping(address => uint) public stakedAt;
+    uint constant ONE_WEEK = 604800;
+    constructor(address _gall) {
+        Gall = IERC20(_gall);
+    }
 
     modifier notEnoughAllowance(uint256 _amount) {
         if (Gall.allowance(msg.sender, address(this)) < _amount) {
@@ -54,6 +61,9 @@ contract Staking {
     function stake(
         uint256 _amount
     ) public notEnoughAllowance(_amount) notEnoughBalance(_amount) {
+        if (stakedBalanceOf[msg.sender] == 0) {
+            stakedAt[msg.sender] = block.timestamp;
+        }
         Gall.transferFrom(msg.sender, address(this), _amount);
         stakedBalanceOf[msg.sender] += _amount;
     }
@@ -66,5 +76,14 @@ contract Staking {
 
     function getStakedAmount(address _address) public view returns (uint256) {
         return stakedBalanceOf[_address];
+    }
+
+    function calculateNumberOfPayouts() public view returns (uint) {
+        uint currentTime = block.timestamp;
+        uint lastStaked = stakedAt[msg.sender];
+        uint timeDifference = currentTime - lastStaked;
+        uint numberOfWeeks = timeDifference / ONE_WEEK;
+
+        return numberOfWeeks;
     }
 }
