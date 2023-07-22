@@ -176,7 +176,7 @@ describe("Staking contract", function () {
       const rewardPerToken = 1589845339
       await approveAndStake(stakingContract, gallContract, tenTokens);
 
-      expect((await stakingContract.calculateRewardPerToken())).to.eq(rewardPerToken);
+      expect((await stakingContract.calculateTokenRewardPerSecond())).to.eq(rewardPerToken);
     });
 
     it('calculates the reward per time staked', async () => {

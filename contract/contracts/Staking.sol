@@ -78,18 +78,17 @@ contract Staking {
     }
 
     function calculateRewards() public view returns (uint) {
-        uint rewardPerToken = calculateRewardPerToken();
-        uint timeStaked = block.timestamp - stakers[msg.sender].stakedAt;
-        uint rewards = timeStaked * rewardPerToken;
-
-        return rewards;
+        uint tokenRewardsPerSecond = calculateTokenRewardPerSecond();
+        uint secondsStaked = block.timestamp - stakers[msg.sender].stakedAt;
+        uint rewardAmount = secondsStaked * tokenRewardsPerSecond;
+        return rewardAmount;
     }
 
-    function calculateRewardPerToken() public view returns (uint) {
+    function calculateTokenRewardPerSecond() public view returns (uint) {
         // 5 % of total staked
         uint totalStaked = stakers[msg.sender].stakedAmount;
         uint appliedApy = (totalStaked * APY) / 100;
-        uint rewardPerToken = appliedApy / 52 weeks;
-        return rewardPerToken;
+        uint rewardsPerSecond = appliedApy / 52 weeks;
+        return rewardsPerSecond;
     }
 }
