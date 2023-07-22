@@ -21,24 +21,24 @@ contract Staking {
     }
 
     uint constant APY = 5; // 5 %
-    IERC20 public Gall;
+    IERC20 public Token;
 
     mapping(address => Staker) public stakers;
     mapping(address => Reward) public rewards;
 
-    constructor(address _gall) {
-        Gall = IERC20(_gall);
+    constructor(address _token) {
+        Token = IERC20(_token);
     }
 
     modifier notEnoughAllowance(uint256 _amount) {
-        if (Gall.allowance(msg.sender, address(this)) < _amount) {
+        if (Token.allowance(msg.sender, address(this)) < _amount) {
             revert Staking__InsufficientAllowance();
         }
         _;
     }
 
     modifier notEnoughBalance(uint256 _amount) {
-        if (_amount > Gall.balanceOf(msg.sender)) {
+        if (_amount > Token.balanceOf(msg.sender)) {
             revert Staking__InsufficientBalance();
         }
         _;
@@ -54,14 +54,14 @@ contract Staking {
         _;
     }
 
-    function fundContractWithGall(
+    function fundContractWithErc20Token(
         uint256 _amount
     ) public notEnoughAllowance(_amount) notEnoughBalance(_amount) {
-        Gall.transferFrom(msg.sender, address(this), _amount);
+        Token.transferFrom(msg.sender, address(this), _amount);
     }
 
-    function getContractGalBalance() public view returns (uint256) {
-        return Gall.balanceOf(address(this));
+    function getContractBalance() public view returns (uint256) {
+        return Token.balanceOf(address(this));
     }
 
     function stake(
@@ -70,13 +70,13 @@ contract Staking {
         if (stakers[msg.sender].stakedAmount == 0) {
             stakers[msg.sender].stakedAt = block.timestamp;
         }
-        Gall.transferFrom(msg.sender, address(this), _amount);
+        Token.transferFrom(msg.sender, address(this), _amount);
         stakers[msg.sender].stakedAmount += _amount;
     }
 
     function unstake(uint256 _amount) public notEnoughStakedBalance(_amount) {
-        Gall.approve(address(this), _amount);
-        Gall.transferFrom(address(this), msg.sender, _amount);
+        Token.approve(address(this), _amount);
+        Token.transferFrom(address(this), msg.sender, _amount);
         stakers[msg.sender].stakedAmount -= _amount;
     }
 
@@ -86,6 +86,7 @@ contract Staking {
 
     function calculateRewards() public view returns (uint) {
         uint tokenRewardsPerSecond = calculateTokenRewardPerSecond();
+
         uint secondsStaked = block.timestamp - stakers[msg.sender].stakedAt;
         uint rewardAmount = secondsStaked * tokenRewardsPerSecond;
         return rewardAmount;
@@ -102,12 +103,12 @@ contract Staking {
     function claimReward() public {
         uint rewardAmount = calculateRewards();
 
-        if (rewardAmount > Gall.balanceOf(address(this))) {
+        if (rewardAmount > Token.balanceOf(address(this))) {
             revert Staking__InsufficientContractBalance();
         }
 
-        Gall.approve(address(this), rewardAmount);
-        Gall.transferFrom(address(this), msg.sender, rewardAmount);
+        Token.approve(address(this), rewardAmount);
+        Token.transferFrom(address(this), msg.sender, rewardAmount);
         rewards[msg.sender].amount += rewardAmount;
         rewards[msg.sender].lastClaimed = block.timestamp;
     }
