@@ -132,7 +132,6 @@ describe("Staking contract", function () {
     });
   });
 
-
   describe('Unstake GAL tokens', () => {
     it("allows to unstake GAL tokens", async () => {
       const { stakingContract, gallContract, deployerAddress } = await loadFixture(deployFixture);
@@ -168,31 +167,28 @@ describe("Staking contract", function () {
   })
 
   describe('Reward system', () => {
-
-    it('Calculates the number of weeks since first stake', async () => {
-      const weeksPassed = 2
+    it('calculates the reward per token based on 5% apy', async () => {
+      // 5 % APY = 0.05 
+      // 1 * (5 / 100) / 1 year in seconds = 0.000000001589845339
+      // With 1 token at 5% makes 0.000000001589845339 every second
+      const tenTokens = 1;
       const { stakingContract, gallContract } = await loadFixture(deployFixture);
-      await approveAndStake(stakingContract, gallContract, 5);
+      const rewardPerToken = 1589845339
+      await approveAndStake(stakingContract, gallContract, tenTokens);
+
+      expect((await stakingContract.calculateRewardPerToken())).to.eq(rewardPerToken);
+    });
+
+    it('calculates the reward per time staked', async () => {
+      const oneToken = 1;
+      const weeksPassed = 52;
+      const { stakingContract, gallContract } = await loadFixture(deployFixture);
+      await approveAndStake(stakingContract, gallContract, oneToken);
       await moveTimeForwardInWeeks(weeksPassed)
 
-      expect(await stakingContract.calculateNumberOfPayouts()).to.equal(2);
+      // around 0.05 tokens
+      expect(await stakingContract.calculateRewards()).to.gte(tokensAmount(0.05));
+      expect(await stakingContract.calculateRewards()).to.lte(tokensAmount(0.051));
     })
-
-  async function approveAndFundContract(stakingContract: Staking, gallContract: Gal, amount: number) {
-    const tokens = tokensAmount(amount);
-    await approveWith(gallContract, stakingContract.address, amount);
-    await stakingContract.fundContractWithGall(tokens)
-  }
-
-  async function approveAndStake(stakingContract: Staking, gallContract: Gal, amount: number) {
-    const tokens = tokensAmount(amount);
-    await gallContract.approve(stakingContract.address, tokens);
-    await stakingContract.stake(tokens);
-  }
-
   });
-
-  function tokensAmount(amount: number): BigNumber {
-    return ethers.utils.parseEther(`${amount}`)
-  }
 });

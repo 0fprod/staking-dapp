@@ -2,20 +2,18 @@
 pragma solidity ^0.8.11;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-// import { console } from "hardhat/console.sol";
+import {console} from "hardhat/console.sol";
 
 error Staking__InsufficientAllowance();
 error Staking__InsufficientBalance();
 error Staking__InsufficientStakedBalance();
 
 contract Staking {
+    uint constant APY = 5; // 5 %
     IERC20 public Gall;
-
-    // Staked amount by address
     mapping(address => uint) public stakedBalanceOf;
-    // Time when staking started
     mapping(address => uint) public stakedAt;
-    uint constant ONE_WEEK = 604800;
+
     constructor(address _gall) {
         Gall = IERC20(_gall);
     }
@@ -42,10 +40,6 @@ contract Staking {
             revert Staking__InsufficientStakedBalance();
         }
         _;
-    }
-
-    constructor(address _gall) {
-        Gall = IERC20(_gall);
     }
 
     function fundContractWithGall(
@@ -78,12 +72,19 @@ contract Staking {
         return stakedBalanceOf[_address];
     }
 
-    function calculateNumberOfPayouts() public view returns (uint) {
-        uint currentTime = block.timestamp;
-        uint lastStaked = stakedAt[msg.sender];
-        uint timeDifference = currentTime - lastStaked;
-        uint numberOfWeeks = timeDifference / ONE_WEEK;
+    function calculateRewards() public view returns (uint) {
+        uint rewardPerToken = calculateRewardPerToken();
+        uint timeStaked = block.timestamp - stakedAt[msg.sender];
+        uint rewards = timeStaked * rewardPerToken;
 
-        return numberOfWeeks;
+        return rewards;
+    }
+
+    function calculateRewardPerToken() public view returns (uint) {
+        // 5 % of total staked
+        uint totalStaked = stakedBalanceOf[msg.sender];
+        uint appliedApy = (totalStaked * APY) / 100;
+        uint rewardPerToken = appliedApy / 52 weeks;
+        return rewardPerToken;
     }
 }
