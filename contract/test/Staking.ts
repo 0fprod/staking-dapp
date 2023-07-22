@@ -190,5 +190,34 @@ describe("Staking contract", function () {
       expect(await stakingContract.calculateRewards()).to.gte(tokensAmount(0.05));
       expect(await stakingContract.calculateRewards()).to.lte(tokensAmount(0.051));
     })
+
+    it('allows to claim rewards', async () => {
+      const oneToken = 1;
+      const weeksPassed = 52;
+      const { stakingContract, gallContract, deployerAddress } = await loadFixture(deployFixture);
+      await approveAndStake(stakingContract, gallContract, oneToken);
+      await moveTimeForwardInWeeks(weeksPassed)
+
+      const initialBalance = await gallContract.balanceOf(deployerAddress);
+      const initialContractBalance = await gallContract.balanceOf(stakingContract.address);
+      await stakingContract.claimReward();
+      const finalBalance = await gallContract.balanceOf(deployerAddress);
+      const finalContractBalance = await gallContract.balanceOf(stakingContract.address);
+
+      expect(finalBalance).to.gt(initialBalance);
+      expect(finalContractBalance).to.lt(initialContractBalance);
+    });
+
+    it('only allows weekly claims', async () => {
+      const oneToken = 1;
+      const weeksPassed = 52;
+      const { stakingContract, gallContract } = await loadFixture(deployFixture);
+      await approveAndStake(stakingContract, gallContract, oneToken);
+      await moveTimeForwardInWeeks(weeksPassed)
+
+      await stakingContract.claimReward();
+      await expect(stakingContract.claimReward())
+        .revertedWithCustomError(stakingContract, "Staking__OnlyClaimOncePerWeek");
+    });
   });
 });
