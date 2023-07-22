@@ -7,7 +7,7 @@ import {console} from "hardhat/console.sol";
 error Staking__InsufficientAllowance();
 error Staking__InsufficientBalance();
 error Staking__InsufficientStakedBalance();
-error Staking__OnlyClaimOncePerWeek();
+error Staking__InsufficientContractBalance();
 
 contract Staking {
     struct Staker {
@@ -50,13 +50,6 @@ contract Staking {
             stakers[msg.sender].stakedAmount < _amount
         ) {
             revert Staking__InsufficientStakedBalance();
-        }
-        _;
-    }
-
-    modifier onlyClaimOncePerWeek() {
-        if (rewards[msg.sender].lastClaimed + 1 weeks > block.timestamp) {
-            revert Staking__OnlyClaimOncePerWeek();
         }
         _;
     }
@@ -106,8 +99,13 @@ contract Staking {
         return rewardsPerSecond;
     }
 
-    function claimReward() public onlyClaimOncePerWeek {
+    function claimReward() public {
         uint rewardAmount = calculateRewards();
+
+        if (rewardAmount > Gall.balanceOf(address(this))) {
+            revert Staking__InsufficientContractBalance();
+        }
+
         Gall.approve(address(this), rewardAmount);
         Gall.transferFrom(address(this), msg.sender, rewardAmount);
         rewards[msg.sender].amount += rewardAmount;

@@ -208,16 +208,15 @@ describe("Staking contract", function () {
       expect(finalContractBalance).to.lt(initialContractBalance);
     });
 
-    it('only allows weekly claims', async () => {
+    it('reverts if clamied amount exceeds contract balance', async () => {
       const oneToken = 1;
-      const weeksPassed = 52;
+      const weeksPassed = 1040; // 20 years
       const { stakingContract, gallContract } = await loadFixture(deployFixture);
       await approveAndStake(stakingContract, gallContract, oneToken);
       await moveTimeForwardInWeeks(weeksPassed)
 
-      await stakingContract.claimReward();
       await expect(stakingContract.claimReward())
-        .revertedWithCustomError(stakingContract, "Staking__OnlyClaimOncePerWeek");
+        .revertedWithCustomError(stakingContract, "Staking__InsufficientContractBalance");
     });
   });
 });
