@@ -15,16 +15,10 @@ contract Staking {
         uint256 stakedAt;
     }
 
-    struct Reward {
-        uint256 amount;
-        uint256 lastClaimed;
-    }
-
     uint constant APY = 5; // 5 %
     IERC20 public Token;
 
     mapping(address => Staker) public stakers;
-    mapping(address => Reward) public rewards;
 
     constructor(address _token) {
         Token = IERC20(_token);
@@ -109,7 +103,5 @@ contract Staking {
 
         Token.approve(address(this), rewardAmount);
         Token.transferFrom(address(this), msg.sender, rewardAmount);
-        rewards[msg.sender].amount += rewardAmount;
-        rewards[msg.sender].lastClaimed = block.timestamp;
     }
 }
