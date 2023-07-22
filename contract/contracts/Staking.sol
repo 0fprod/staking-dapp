@@ -9,10 +9,15 @@ error Staking__InsufficientBalance();
 error Staking__InsufficientStakedBalance();
 
 contract Staking {
+    struct Staker {
+        uint256 stakedAmount;
+        uint256 stakedAt;
+    }
+
     uint constant APY = 5; // 5 %
     IERC20 public Gall;
-    mapping(address => uint) public stakedBalanceOf;
-    mapping(address => uint) public stakedAt;
+
+    mapping(address => Staker) public stakers;
 
     constructor(address _gall) {
         Gall = IERC20(_gall);
@@ -34,8 +39,8 @@ contract Staking {
 
     modifier notEnoughStakedBalance(uint256 _amount) {
         if (
-            stakedBalanceOf[msg.sender] <= 0 ||
-            stakedBalanceOf[msg.sender] < _amount
+            stakers[msg.sender].stakedAmount <= 0 ||
+            stakers[msg.sender].stakedAmount < _amount
         ) {
             revert Staking__InsufficientStakedBalance();
         }
@@ -55,26 +60,26 @@ contract Staking {
     function stake(
         uint256 _amount
     ) public notEnoughAllowance(_amount) notEnoughBalance(_amount) {
-        if (stakedBalanceOf[msg.sender] == 0) {
-            stakedAt[msg.sender] = block.timestamp;
+        if (stakers[msg.sender].stakedAmount == 0) {
+            stakers[msg.sender].stakedAt = block.timestamp;
         }
         Gall.transferFrom(msg.sender, address(this), _amount);
-        stakedBalanceOf[msg.sender] += _amount;
+        stakers[msg.sender].stakedAmount += _amount;
     }
 
     function unstake(uint256 _amount) public notEnoughStakedBalance(_amount) {
         Gall.approve(address(this), _amount);
         Gall.transferFrom(address(this), msg.sender, _amount);
-        stakedBalanceOf[msg.sender] -= _amount;
+        stakers[msg.sender].stakedAmount -= _amount;
     }
 
     function getStakedAmount(address _address) public view returns (uint256) {
-        return stakedBalanceOf[_address];
+        return stakers[_address].stakedAmount;
     }
 
     function calculateRewards() public view returns (uint) {
         uint rewardPerToken = calculateRewardPerToken();
-        uint timeStaked = block.timestamp - stakedAt[msg.sender];
+        uint timeStaked = block.timestamp - stakers[msg.sender].stakedAt;
         uint rewards = timeStaked * rewardPerToken;
 
         return rewards;
@@ -82,7 +87,7 @@ contract Staking {
 
     function calculateRewardPerToken() public view returns (uint) {
         // 5 % of total staked
-        uint totalStaked = stakedBalanceOf[msg.sender];
+        uint totalStaked = stakers[msg.sender].stakedAmount;
         uint appliedApy = (totalStaked * APY) / 100;
         uint rewardPerToken = appliedApy / 52 weeks;
         return rewardPerToken;
