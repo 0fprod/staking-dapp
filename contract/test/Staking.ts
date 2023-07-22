@@ -1,37 +1,9 @@
-import { loadFixture, mine } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { ethers } from "hardhat";
-import { Token, Staking } from "../typechain-types";
 import { expect } from "chai";
-import { BigNumber } from "ethers";
+import { approveAndFundContract, approveAndStake, moveTimeForwardInWeeks, tokensAmount } from "./helper";
 
 describe("Staking contract", function () {
-
-  async function approveAndFundContract(stakingContract: Staking, tokenContract: Token, amount: number) {
-    const tokens = tokensAmount(amount);
-    await approveWith(tokenContract, stakingContract.address, amount);
-    await stakingContract.fundContractWithErc20Token(tokens)
-  }
-
-  async function approveAndStake(stakingContract: Staking, tokenContract: Token, amount: number) {
-    const tokens = tokensAmount(amount);
-    await tokenContract.approve(stakingContract.address, tokens);
-    await stakingContract.stake(tokens);
-  }
-
-  async function approveWith(tokenContract: Token, address: string, amount: number) {
-    const tokens = ethers.utils.parseEther(`${amount}`);
-    await tokenContract.approve(address, tokens);
-  }
-
-  async function moveTimeForwardInWeeks(numberOfBlocks = 1) {
-    const oneWeekInSeconds = 604800;
-
-    await mine(numberOfBlocks + 1, { interval: oneWeekInSeconds });
-  }
-
-  function tokensAmount(amount: number): BigNumber {
-    return ethers.utils.parseEther(`${amount}`)
-  }
 
   async function deployErc20Fixture() {
     const tokenFactory = await ethers.getContractFactory("Token");
@@ -51,7 +23,6 @@ describe("Staking contract", function () {
 
     return { stakingContract, tokenContract, deployerAddress };
   }
-
 
   it("is funded with the given amount of tokens", async () => {
     const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
