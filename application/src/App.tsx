@@ -1,8 +1,22 @@
-import { ConnectWallet, useChain } from '@thirdweb-dev/react';
+import { ConnectWallet, useChain, useAddress, useContract } from '@thirdweb-dev/react';
 import './styles/Home.css';
+import { useEffect, useState } from 'react';
+import { erc20TokenAddress, erc20TokenABI } from '../constants';
+import { utils } from 'ethers';
 
 export default function Home() {
   const chain = useChain();
+  const address = useAddress();
+  const [erc20balance, setErc20Balance] = useState('0');
+  const { contract } = useContract(erc20TokenAddress, erc20TokenABI);
+
+  useEffect(() => {
+    if (address && contract) {
+      contract.call('balanceOf', [address]).then((balance: any) => {
+        setErc20Balance(utils.formatEther(balance));
+      });
+    }
+  }, [address, contract]);
 
   return (
     <main className="main">
@@ -20,7 +34,8 @@ export default function Home() {
                 }}
               />
             </div>
-            <p> Connected to: "{chain?.chain}"</p>
+            <p> Connected to chain: {chain ? chain.chain : 'None'}</p>
+            <p> Erc20 balance: {erc20balance} 🤘🏼</p>
           </div>
         </div>
 
