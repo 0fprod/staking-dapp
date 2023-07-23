@@ -1,5 +1,6 @@
 import { ConnectWallet, useChain, useAddress, useContract } from '@thirdweb-dev/react';
 import './styles/Home.css';
+import Stake from './components/stake/Stake';
 import { useEffect, useState } from 'react';
 import { erc20TokenAddress, erc20TokenABI } from '../constants';
 import { utils } from 'ethers';
@@ -10,12 +11,16 @@ export default function Home() {
   const [erc20balance, setErc20Balance] = useState('0');
   const { contract } = useContract(erc20TokenAddress, erc20TokenABI);
 
-  useEffect(() => {
+  const refreshBalance = () => {
     if (address && contract) {
       contract.call('balanceOf', [address]).then((balance: any) => {
         setErc20Balance(utils.formatEther(balance));
       });
     }
+  };
+
+  useEffect(() => {
+    refreshBalance();
   }, [address, contract]);
 
   return (
@@ -39,7 +44,9 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="grid">things here</div>
+        <div className="grid">
+          <Stake refreshBalance={refreshBalance} />
+        </div>
       </div>
     </main>
   );
