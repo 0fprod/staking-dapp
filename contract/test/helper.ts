@@ -20,11 +20,12 @@ export async function approveWith(tokenContract: Token, address: string, amount:
   await tokenContract.approve(address, tokens);
 }
 
-export async function moveTimeForwardInWeeks(numberOfBlocks = 1) {
+export async function moveTimeForwardInWeeks(numberOfWeeks = 1) {
   const oneWeekInSeconds = 604800;
 
-  await mine(numberOfBlocks + 1, { interval: oneWeekInSeconds });
+  await mine(2, { interval: oneWeekInSeconds * numberOfWeeks });
 }
+
 export function tokensAmount(amount: number): BigNumber {
   return ethers.utils.parseEther(`${amount}`)
 }

@@ -3,12 +3,11 @@ pragma solidity ^0.8.11;
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-
-import {console} from "hardhat/console.sol";
+import "abdk-libraries-solidity/ABDKMathQuad.sol";
+// import {console} from "hardhat/console.sol";
 
 error Staking__InsufficientStakedBalance();
 error Staking__InsufficientContractBalance();
-error Staking__InsufficientTimePassed();
 
 contract Staking {
     using SafeERC20 for IERC20;
@@ -26,16 +25,6 @@ contract Staking {
 
     constructor(address _token) {
         Token = IERC20(_token);
-    }
-
-    modifier notEnoughStakedBalance(uint256 _amount) {
-        if (
-            stakers[msg.sender].stakedAmount <= 0 ||
-            stakers[msg.sender].stakedAmount < _amount
-        ) {
-            revert Staking__InsufficientStakedBalance();
-        }
-        _;
     }
 
     function fundContractWithErc20Token(uint256 _amount) public {
@@ -61,13 +50,41 @@ contract Staking {
         totalStaked = totalStaked.add(_amount);
     }
 
-    function unstake(uint256 _amount) public notEnoughStakedBalance(_amount) {
-        Token.approve(address(this), _amount);
-        Token.transferFrom(address(this), msg.sender, _amount);
-        stakers[msg.sender].stakedAmount = stakers[msg.sender].stakedAmount.sub(
-            _amount
+    function unstake(uint256 _amountToUnstake) public {
+        Staker memory staker = stakers[msg.sender];
+        uint rewardAmount = calculateCompoundedRewards();
+        uint virtualTotalStaked = totalStaked.add(rewardAmount);
+        staker.stakedAmount = staker.stakedAmount.add(rewardAmount);
+        uint availableRewards = getAvailableRewards();
+
+        if (staker.stakedAmount < _amountToUnstake) {
+            revert Staking__InsufficientStakedBalance();
+        }
+
+        // TODO: Review edge cases
+        // if (
+        //     _amountToUnstake <= stakers[msg.sender].stakedAmount &&
+        //     availableRewards < rewardAmount
+        // ) {
+        //     Token.transfer(msg.sender, _amountToUnstake);
+        //     stakers[msg.sender].stakedAmount = stakers[msg.sender]
+        //         .stakedAmount
+        //         .sub(_amountToUnstake);
+        //     stakers[msg.sender].lastUpdated = block.timestamp;
+        //     totalStaked = totalStaked.sub(_amountToUnstake);
+        //     return;
+        // }
+
+        if (availableRewards < rewardAmount) {
+            revert Staking__InsufficientContractBalance();
+        }
+
+        Token.transfer(msg.sender, _amountToUnstake);
+        stakers[msg.sender].stakedAmount = staker.stakedAmount.sub(
+            _amountToUnstake
         );
-        totalStaked = totalStaked.sub(_amount);
+        stakers[msg.sender].lastUpdated = block.timestamp;
+        totalStaked = virtualTotalStaked.sub(_amountToUnstake);
     }
 
     function getStakedAmountFor(
@@ -76,29 +93,35 @@ contract Staking {
         return stakers[_address].stakedAmount;
     }
 
-    function calculateTokenRewardPerSecond() public view returns (uint) {
-        uint stakedBalance = stakers[msg.sender].stakedAmount;
-        uint appliedApy = stakedBalance.mul(APY).div(100);
-        uint rewardsPerSecond = appliedApy.div(52 weeks);
-        return rewardsPerSecond;
+    function calculatePercentageOf(
+        uint amount,
+        uint percentage
+    ) public pure returns (uint) {
+        return
+            ABDKMathQuad.toUInt(
+                ABDKMathQuad.div(
+                    ABDKMathQuad.mul(
+                        ABDKMathQuad.fromUInt(amount),
+                        ABDKMathQuad.fromUInt(percentage)
+                    ),
+                    ABDKMathQuad.fromUInt(100)
+                )
+            );
     }
 
-    function compoundRewards() public {
-        uint timePassed = block.timestamp - stakers[msg.sender].lastUpdated;
-        if (timePassed < 1 weeks) {
-            revert Staking__InsufficientTimePassed();
+    function calculateCompoundedRewards() public view returns (uint256) {
+        Staker memory staker = stakers[msg.sender];
+        uint timeDifference = block.timestamp - staker.lastUpdated;
+        uint numberOfWeeks = timeDifference / 1 weeks;
+        uint balance = staker.stakedAmount;
+
+        for (uint i = 0; i < numberOfWeeks; i++) {
+            uint compoundedInterest = calculatePercentageOf(balance, APY).div(
+                52
+            );
+            balance = balance.add(compoundedInterest);
         }
 
-        uint rewards = calculateTokenRewardPerSecond();
-        if (getAvailableRewards() < rewards) {
-            revert Staking__InsufficientContractBalance();
-        }
-
-        uint rewardAmount = timePassed.mul(rewards);
-        stakers[msg.sender].stakedAmount = stakers[msg.sender].stakedAmount.add(
-            rewardAmount
-        );
-        stakers[msg.sender].lastUpdated = block.timestamp;
-        totalStaked = totalStaked.add(rewardAmount);
+        return balance.sub(staker.stakedAmount);
     }
 }
