@@ -2,6 +2,7 @@ import { mine } from "@nomicfoundation/hardhat-network-helpers";
 import { BigNumber } from "ethers";
 import { ethers } from "hardhat";
 import { Staking, Token } from "../typechain-types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 export async function approveAndFundContract(stakingContract: Staking, tokenContract: Token, amount: number) {
   const tokens = tokensAmount(amount);
@@ -9,8 +10,13 @@ export async function approveAndFundContract(stakingContract: Staking, tokenCont
   await stakingContract.fundContractWithErc20Token(tokens)
 }
 
-export async function approveAndStake(stakingContract: Staking, tokenContract: Token, amount: number) {
+export async function approveAndStake(stakingContract: Staking, tokenContract: Token, amount: number, signer?: SignerWithAddress) {
   const tokens = tokensAmount(amount);
+  if (signer) {
+    await tokenContract.connect(signer).approve(stakingContract.address, tokens);
+    await stakingContract.connect(signer).stake(tokens);
+    return;
+  }
   await tokenContract.approve(stakingContract.address, tokens);
   await stakingContract.stake(tokens);
 }
@@ -32,4 +38,8 @@ export function tokensAmount(amount: number): BigNumber {
 
 export function formatUnits(amount: BigNumber): number {
   return +ethers.utils.formatUnits(amount, 18)
+}
+
+export function mintTokensFor(tokenContract: Token, signer: SignerWithAddress, amount: number) {
+  return tokenContract.connect(signer).faucet(signer.address, tokensAmount(amount))
 }
