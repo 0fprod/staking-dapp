@@ -29,3 +29,7 @@ export async function moveTimeForwardInWeeks(numberOfWeeks = 1) {
 export function tokensAmount(amount: number): BigNumber {
   return ethers.utils.parseEther(`${amount}`)
 }
+
+export function formatUnits(amount: BigNumber): number {
+  return +ethers.utils.formatUnits(amount, 18)
+}

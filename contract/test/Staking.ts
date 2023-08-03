@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { ethers } from "hardhat";
 import { expect } from "chai";
-import { approveAndFundContract, approveAndStake, moveTimeForwardInWeeks, tokensAmount } from "./helper";
+import { approveAndFundContract, approveAndStake, formatUnits, moveTimeForwardInWeeks, tokensAmount } from "./helper";
 
 describe("Staking contract", function () {
   const thousandTokens = tokensAmount(1000);
@@ -43,6 +43,16 @@ describe("Staking contract", function () {
         .revertedWith('ERC20: insufficient allowance')
     });
 
+    it('reverts tx is sender is not the owner when funding', async () => {
+      const { stakingContract, tokenContract } = await loadFixture(deployFixture);
+      const fiveTokens = tokensAmount(5);
+      await tokenContract.approve(stakingContract.address, fiveTokens);
+
+      const [_, notOwner] = await ethers.getSigners();
+      await expect(stakingContract.connect(notOwner).fundContractWithErc20Token(fiveTokens))
+        .revertedWith('Ownable: caller is not the owner');
+    });
+
     it('reverts tx if sender\'s balance is not enough when funding', async () => {
       const { stakingContract, tokenContract } = await loadFixture(deployFixture);
       await tokenContract.approve(stakingContract.address, thousandTokens.add(tokensAmount(1)));
@@ -68,6 +78,30 @@ describe("Staking contract", function () {
         [deployerAddress, stakingContract.address],
         [twoTokens.mul(-1), twoTokens]
       );
+    });
+
+    it('staking more tokens applies the compound interest to the first epoch and reset staking date for the new amount', async () => {
+      // Stakes 10 tokens for a year and then stakes 90 tokens for another year
+      // The first year would give 10 (+0.5) tokens in rewards
+      // The second year would start with 90 + 10.5 = 100.5 tokens so 105 +- in rewards
+      const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
+      const weeksPassed = 52;
+      await approveAndStake(stakingContract, tokenContract, 10)
+      await moveTimeForwardInWeeks(weeksPassed)
+      const firstEpochRewards = formatUnits(await stakingContract.calculateCompoundedRewards());
+      const firstEpochStakeAmount = formatUnits(await stakingContract.getStakedAmountFor(deployerAddress))
+
+      await approveAndStake(stakingContract, tokenContract, 90)
+      await moveTimeForwardInWeeks(weeksPassed)
+      const secondEpochStakeAmount = formatUnits(await stakingContract.getStakedAmountFor(deployerAddress))
+      const secondEpochRewards = formatUnits(await stakingContract.calculateCompoundedRewards());
+      const stakedPlusRewardsAfter2Years = secondEpochRewards + secondEpochStakeAmount;
+
+      expect(firstEpochRewards).to.be.closeTo(0.5, 0.1);
+      expect(firstEpochStakeAmount).to.equal(10);
+      expect(secondEpochRewards).to.be.closeTo(5, 1);
+      expect(secondEpochStakeAmount).to.be.closeTo(100.5, 0.1);
+      expect(stakedPlusRewardsAfter2Years).to.be.closeTo(105.5, 0.5);
     });
 
     it('reverts tx if sender\'s allowance is not enough when staking', async () => {
@@ -161,26 +195,6 @@ describe("Staking contract", function () {
       const contranctTotalStaked = await stakingContract.getStakedAmount();
       expect(contranctTotalStaked).to.equal(initialStakedBalance.sub(amountToUnstake).add(rewards));
       expect(await stakingContract.getAvailableRewards()).to.equal(initialAvailableRewards.sub(rewards));
-    });
-
-    xit('allows to unstake when the contract has no rewards and the staker deserves them', async () => {
-      const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
-      const oneHundred = 100
-      await approveAndStake(stakingContract, tokenContract, oneHundred)
-      const oneHundredTokens = tokensAmount(oneHundred)
-      await moveTimeForwardInWeeks(52)
-
-      const rewards = await stakingContract.calculateCompoundedRewards();
-
-      expect(await stakingContract.unstake(oneHundredTokens)).to.changeTokenBalances(
-        tokenContract,
-        [deployerAddress, stakingContract.address],
-        [oneHundredTokens, oneHundredTokens.mul(-1)]
-      );
-      expect(await stakingContract.getStakedAmountFor(deployerAddress)).to.equal(0)
-      expect(await stakingContract.getStakedAmount()).to.equal(0);
-      expect(await stakingContract.getAvailableRewards()).to.equal(0);
-      expect(rewards).to.be.gt(0);
     });
 
     it("revert tx if staker has no balance when unstaking", async () => {

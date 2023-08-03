@@ -34,12 +34,43 @@ contract Staking is Ownable {
      */
     function stake(uint256 _amount) public {
         if (stakers[msg.sender].stakedAmount == 0) {
-            stakers[msg.sender].lastUpdated = block.timestamp;
+            firstStake(_amount);
+        } else {
+            reStake(_amount);
         }
+    }
+
+    /**
+     * @dev Stakes the given amount of tokens
+     * @param _amount Amount of tokens to stake
+     */
+    function firstStake(uint256 _amount) internal {
         Token.transferFrom(msg.sender, address(this), _amount);
+        stakers[msg.sender].lastUpdated = block.timestamp;
         stakers[msg.sender].stakedAmount = stakers[msg.sender].stakedAmount.add(
             _amount
         );
+        totalStaked = totalStaked.add(_amount);
+    }
+
+    /**
+     * @dev Applies the compounded rewards to the staked amount
+     * and stakes the given amount of tokens while updating the
+     * last updated timestamp
+     * @notice This function is called when the staker
+     * has already staked tokens before
+     * @param _amount Amount of tokens to stake
+     */
+    function reStake(uint256 _amount) internal {
+        Token.transferFrom(msg.sender, address(this), _amount);
+        uint rewardAmount = calculateCompoundedRewards();
+        uint newBalance = stakers[msg.sender]
+            .stakedAmount
+            .add(rewardAmount)
+            .add(_amount);
+
+        stakers[msg.sender].stakedAmount = newBalance;
+        stakers[msg.sender].lastUpdated = block.timestamp;
         totalStaked = totalStaked.add(_amount);
     }
 
