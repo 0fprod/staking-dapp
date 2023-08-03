@@ -123,7 +123,7 @@ describe("Staking contract", function () {
     });
   })
 
-  describe.only('Unstake', () => {
+  describe('Unstake', () => {
     it("allows to unstake all the tokens when there is no rewards yet", async () => {
       const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
       const oneHundred = 100
