@@ -5,10 +5,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "abdk-libraries-solidity/ABDKMathQuad.sol";
-// import {console} from "hardhat/console.sol";
+import {console} from "hardhat/console.sol";
 
 error Staking__InsufficientStakedBalance();
 error Staking__InsufficientContractBalance();
+error Staking__CallUnstakeFirst();
 
 contract Staking is Ownable {
     using SafeERC20 for IERC20;
@@ -79,26 +80,52 @@ contract Staking is Ownable {
      * @param _amountToUnstake Amount of tokens to unstake
      */
     function unstake(uint256 _amountToUnstake) public {
-        Staker memory staker = stakers[msg.sender];
-        uint rewardAmount = calculateCompoundedRewards();
-        uint virtualTotalStaked = totalStaked.add(rewardAmount);
-        staker.stakedAmount = staker.stakedAmount.add(rewardAmount);
         uint availableRewards = getAvailableRewards();
+        uint rewardAmount = calculateCompoundedRewards();
+        uint maxUnstakableAmount = stakers[msg.sender].stakedAmount.add(
+            rewardAmount
+        );
 
-        if (staker.stakedAmount < _amountToUnstake) {
+        if (_amountToUnstake > maxUnstakableAmount) {
             revert Staking__InsufficientStakedBalance();
+        }
+
+        // Runs if wants to unstake less than the initial stake
+        if (_amountToUnstake < stakers[msg.sender].stakedAmount) {
+            _transferUpdateStaker(
+                _amountToUnstake,
+                maxUnstakableAmount,
+                rewardAmount
+            );
+            return;
         }
 
         if (availableRewards < rewardAmount) {
             revert Staking__InsufficientContractBalance();
         }
 
-        Token.transfer(msg.sender, _amountToUnstake);
-        stakers[msg.sender].stakedAmount = staker.stakedAmount.sub(
-            _amountToUnstake
+        // Runs if wants to unstake the initial stake plus a portion of the rewards
+        if (_amountToUnstake <= maxUnstakableAmount) {
+            _transferUpdateStaker(
+                _amountToUnstake,
+                maxUnstakableAmount,
+                rewardAmount
+            );
+            return;
+        }
+    }
+
+    function _transferUpdateStaker(
+        uint _amountToTransfer,
+        uint maxUnstakableAmount,
+        uint rewardAmount
+    ) internal {
+        Token.transfer(msg.sender, _amountToTransfer);
+        stakers[msg.sender].stakedAmount = maxUnstakableAmount.sub(
+            _amountToTransfer
         );
         stakers[msg.sender].lastUpdated = block.timestamp;
-        totalStaked = virtualTotalStaked.sub(_amountToUnstake);
+        totalStaked = totalStaked.add(rewardAmount).sub(_amountToTransfer);
     }
 
     /**

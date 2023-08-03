@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { ethers } from "hardhat";
 import { expect } from "chai";
-import { approveAndFundContract, approveAndStake, formatUnits, moveTimeForwardInWeeks, tokensAmount } from "./helper";
+import { approveAndFundContract, approveAndStake, formatUnits, mintTokensFor, moveTimeForwardInWeeks, tokensAmount } from "./helper";
 
 describe("Staking contract", function () {
   const thousandTokens = tokensAmount(1000);
@@ -15,14 +15,14 @@ describe("Staking contract", function () {
   }
 
   async function deployFixture() {
-    const [deployer] = await ethers.getSigners();
+    const [deployer, otherSigner] = await ethers.getSigners();
     const deployerAddress = deployer.address
     const { tokenContract } = await loadFixture(deployErc20Fixture);
     const tokenAddress = tokenContract.address;
     const stakingFactory = await ethers.getContractFactory("Staking")
     const stakingContract = await stakingFactory.deploy(tokenAddress);
 
-    return { stakingContract, tokenContract, deployerAddress };
+    return { stakingContract, tokenContract, deployerAddress, otherSigner };
   }
 
   describe('Deployment', () => {
@@ -113,7 +113,7 @@ describe("Staking contract", function () {
         .revertedWith('ERC20: insufficient allowance')
     });
 
-    it('reverts tx if sender\'s amount is not enough when staking', async () => {
+    it('reverts tx if sender\'s balance is not enough when staking', async () => {
       const { stakingContract, tokenContract } = await loadFixture(deployFixture);
       const tokens = thousandTokens.add(tokensAmount(1));
       await tokenContract.approve(stakingContract.address, tokens);
@@ -123,8 +123,8 @@ describe("Staking contract", function () {
     });
   })
 
-  describe('Unstake', () => {
-    it("allows to unstake tokens without rewards", async () => {
+  describe.only('Unstake', () => {
+    it("allows to unstake all the tokens when there is no rewards yet", async () => {
       const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
       const oneHundred = 100
       await approveAndStake(stakingContract, tokenContract, oneHundred)
@@ -139,7 +139,21 @@ describe("Staking contract", function () {
       expect(await stakingContract.getStakedAmount()).to.equal(0);
     });
 
-    it('allows to unstake tokens with rewards', async () => {
+    it('allows to unstake a fraction of the tokens when there is no reward yet', async () => {
+      const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
+      await approveAndStake(stakingContract, tokenContract, 100)
+      const fiftyTokens = tokensAmount(50)
+
+      expect(await stakingContract.unstake(fiftyTokens)).to.changeTokenBalances(
+        tokenContract,
+        [deployerAddress, stakingContract.address],
+        [fiftyTokens, fiftyTokens.mul(-1)]
+      );
+      expect(await stakingContract.getStakedAmountFor(deployerAddress)).to.equal(fiftyTokens)
+      expect(await stakingContract.getStakedAmount()).to.equal(fiftyTokens);
+    });
+
+    it('allows to unstake all tokens (including rewards)', async () => {
       const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
       const availableRewards = 10;
       await approveAndFundContract(stakingContract, tokenContract, availableRewards);
@@ -160,22 +174,7 @@ describe("Staking contract", function () {
       expect(await stakingContract.getAvailableRewards()).to.equal(initialAvailableRewards.sub(rewards));
     });
 
-    it('allows to unstake a fraction of the staked amount without rewards', async () => {
-      const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
-      const oneHundred = 100
-      await approveAndStake(stakingContract, tokenContract, oneHundred)
-      const fiftyTokens = tokensAmount(50)
-
-      expect(await stakingContract.unstake(fiftyTokens)).to.changeTokenBalances(
-        tokenContract,
-        [deployerAddress, stakingContract.address],
-        [fiftyTokens, fiftyTokens.mul(-1)]
-      );
-      expect(await stakingContract.getStakedAmountFor(deployerAddress)).to.equal(fiftyTokens)
-      expect(await stakingContract.getStakedAmount()).to.equal(fiftyTokens);
-    });
-
-    it('allows to unstake a fraction of the staked amount with rewards', async () => {
+    it('allows to unstake a fraction of the staked tokens and add the pending rewards to current stake', async () => {
       const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
       const availableRewards = 10;
       await approveAndFundContract(stakingContract, tokenContract, availableRewards);
@@ -191,13 +190,41 @@ describe("Staking contract", function () {
       await stakingContract.unstake(amountToUnstake);
 
       const finalStakedBalance = await stakingContract.getStakedAmountFor(deployerAddress);
+      const contractTotalStaked = await stakingContract.getStakedAmount();
       expect(finalStakedBalance).to.equal(initialStakedBalance.sub(amountToUnstake).add(rewards));
-      const contranctTotalStaked = await stakingContract.getStakedAmount();
-      expect(contranctTotalStaked).to.equal(initialStakedBalance.sub(amountToUnstake).add(rewards));
+      expect(contractTotalStaked).to.equal(initialStakedBalance.sub(amountToUnstake).add(rewards));
       expect(await stakingContract.getAvailableRewards()).to.equal(initialAvailableRewards.sub(rewards));
     });
 
-    it("revert tx if staker has no balance when unstaking", async () => {
+    it('allows to unstake a fraction of the staked tokens (including some rewards) and leave the pending rewards in the contract', async () => {
+      const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
+      const availableRewards = 10;
+      await approveAndFundContract(stakingContract, tokenContract, availableRewards);
+      await approveAndStake(stakingContract, tokenContract, 100)
+      await moveTimeForwardInWeeks(52)
+
+      const initialAvailableRewards = await stakingContract.getAvailableRewards();
+      const initialStakedBalance = await stakingContract.getStakedAmountFor(deployerAddress);
+      const rewardsBeforeUnstake = await stakingContract.calculateCompoundedRewards();
+      const amountToUnstake = tokensAmount(103.5);
+
+      expect(await stakingContract.unstake(amountToUnstake)).to.changeTokenBalances(
+        tokenContract,
+        [deployerAddress, stakingContract.address],
+        [amountToUnstake, amountToUnstake.mul(-1)]
+      );
+
+      const finalStakedBalance = await stakingContract.getStakedAmountFor(deployerAddress);
+      const contractTotalStaked = await stakingContract.getStakedAmount();
+      const operation = initialStakedBalance.add(rewardsBeforeUnstake).sub(amountToUnstake);
+
+      expect(finalStakedBalance).to.equal(operation);
+      expect(contractTotalStaked).to.equal(operation);
+      expect(await stakingContract.getAvailableRewards()).to.equal(initialAvailableRewards.sub(rewardsBeforeUnstake));
+
+    });
+
+    it("reverts when the staker has no staking balance", async () => {
       const { stakingContract } = await loadFixture(deployFixture);
       const twoTokens = tokensAmount(2)
 
@@ -205,26 +232,47 @@ describe("Staking contract", function () {
         .revertedWithCustomError(stakingContract, "Staking__InsufficientStakedBalance");
     })
 
-    it("reverts tx if staker tries to unstake more than the staked amount", async () => {
+    it("reverts when the staker tries to unstake more than the staked balance", async () => {
       const { stakingContract, tokenContract } = await loadFixture(deployFixture);
-      await approveAndFundContract(stakingContract, tokenContract, 5);
       await approveAndStake(stakingContract, tokenContract, 2)
 
-      await stakingContract.unstake(tokensAmount(1));
-
-      await expect(stakingContract.unstake(tokensAmount(2)))
+      await expect(stakingContract.unstake(tokensAmount(3)))
         .revertedWithCustomError(stakingContract, "Staking__InsufficientStakedBalance");
     })
 
-    it('reverts tx if staker tries to unstake more than the contract\'s balance', async () => {
+    it('reverts when staker tries to unstake more than the contract\'s balance', async () => {
       const { stakingContract, tokenContract } = await loadFixture(deployFixture);
-      // await approveAndFundContract(stakingContract, tokenContract, 5);
       await approveAndStake(stakingContract, tokenContract, 100)
       await moveTimeForwardInWeeks(52)
 
       await expect(stakingContract.unstake(tokensAmount(101)))
         .revertedWithCustomError(stakingContract, "Staking__InsufficientContractBalance");
     })
+
+    it('allows to unstake when there are more than one stakers', async () => {
+      const { stakingContract, tokenContract, deployerAddress, otherSigner } = await loadFixture(deployFixture);
+      const availableRewards = 10;
+      await mintTokensFor(tokenContract, otherSigner, 1000);
+      await approveAndFundContract(stakingContract, tokenContract, availableRewards);
+      await approveAndStake(stakingContract, tokenContract, 100)
+      await approveAndStake(stakingContract, tokenContract, 100, otherSigner)
+      await moveTimeForwardInWeeks(52)
+
+      const initialAvailableRewards = await stakingContract.getAvailableRewards();
+      const initialStakedBalance = await stakingContract.getStakedAmountFor(deployerAddress);
+      const initialStakedBalanceForOther = await stakingContract.getStakedAmountFor(otherSigner.address);
+      const rewards = await stakingContract.calculateCompoundedRewards();
+
+      const amountToUnstake = tokensAmount(10);
+      await stakingContract.unstake(amountToUnstake);
+
+      const finalStakedBalance = await stakingContract.getStakedAmountFor(deployerAddress);
+      const contractTotalStaked = await stakingContract.getStakedAmount();
+      expect(finalStakedBalance).to.equal(initialStakedBalance.sub(amountToUnstake).add(rewards));
+      expect(contractTotalStaked).to.equal(initialStakedBalance.sub(amountToUnstake).add(rewards).add(initialStakedBalanceForOther));
+      expect(await stakingContract.getAvailableRewards()).to.equal(initialAvailableRewards.sub(rewards));
+    });
+
   })
 
   describe('Reward system', () => {
