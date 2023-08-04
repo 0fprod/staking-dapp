@@ -9,7 +9,7 @@ import {console} from "hardhat/console.sol";
 
 error Staking__InsufficientStakedBalance();
 error Staking__InsufficientContractBalance();
-error Staking__CallUnstakeFirst();
+error Staking__HasAvailableRewards();
 
 contract Staking is Ownable {
     using SafeERC20 for IERC20;
@@ -90,9 +90,13 @@ contract Staking is Ownable {
             revert Staking__InsufficientStakedBalance();
         }
 
+        if (availableRewards < rewardAmount) {
+            revert Staking__InsufficientContractBalance();
+        }
+
         // Runs if wants to unstake less than the initial stake
         if (_amountToUnstake < stakers[msg.sender].stakedAmount) {
-            _transferUpdateStaker(
+            _tansferToSenderAndUpdateStake(
                 _amountToUnstake,
                 maxUnstakableAmount,
                 rewardAmount
@@ -100,13 +104,9 @@ contract Staking is Ownable {
             return;
         }
 
-        if (availableRewards < rewardAmount) {
-            revert Staking__InsufficientContractBalance();
-        }
-
-        // Runs if wants to unstake the initial stake plus a portion of the rewards
+        // Runs if wants to unstake the initial stake plus a portion of or all the rewards
         if (_amountToUnstake <= maxUnstakableAmount) {
-            _transferUpdateStaker(
+            _tansferToSenderAndUpdateStake(
                 _amountToUnstake,
                 maxUnstakableAmount,
                 rewardAmount
@@ -115,17 +115,18 @@ contract Staking is Ownable {
         }
     }
 
-    function _transferUpdateStaker(
+    function _tansferToSenderAndUpdateStake(
         uint _amountToTransfer,
-        uint maxUnstakableAmount,
-        uint rewardAmount
+        uint _maxUnstakableAmount,
+        uint _rewardAmount
     ) internal {
-        Token.transfer(msg.sender, _amountToTransfer);
-        stakers[msg.sender].stakedAmount = maxUnstakableAmount.sub(
+        uint remainingStakingAmount = _maxUnstakableAmount.sub(
             _amountToTransfer
         );
+        Token.transfer(msg.sender, _amountToTransfer);
+        stakers[msg.sender].stakedAmount = remainingStakingAmount;
         stakers[msg.sender].lastUpdated = block.timestamp;
-        totalStaked = totalStaked.add(rewardAmount).sub(_amountToTransfer);
+        totalStaked = totalStaked.add(_rewardAmount).sub(_amountToTransfer);
     }
 
     /**
@@ -146,6 +147,26 @@ contract Staking is Ownable {
         }
 
         return balance.sub(staker.stakedAmount);
+    }
+
+    /**
+     * @dev Emergency withdraw function
+     * @notice This function is called when the staker
+     * wants to withdraw all the staked and renounce the rewards
+     * because the contract doesn't have enough balance
+     */
+    function withdrawAll() public {
+        uint rewardAmount = calculateCompoundedRewards();
+        uint availableRewards = getAvailableRewards();
+
+        if (availableRewards > rewardAmount) {
+            revert Staking__HasAvailableRewards();
+        }
+
+        Token.transfer(msg.sender, stakers[msg.sender].stakedAmount);
+        totalStaked = totalStaked.sub(stakers[msg.sender].stakedAmount);
+        stakers[msg.sender].lastUpdated = 0;
+        stakers[msg.sender].stakedAmount = 0;
     }
 
     /**

@@ -273,6 +273,30 @@ describe("Staking contract", function () {
       expect(await stakingContract.getAvailableRewards()).to.equal(initialAvailableRewards.sub(rewards));
     });
 
+    // TODO:
+    // xit('what happens when there is no rewards and a user tries to unstake', async () => {
+    //   const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
+    //   await approveAndStake(stakingContract, tokenContract, 100)
+    //   await moveTimeForwardInWeeks(52)
+
+    //   const initialAvailableRewards = await stakingContract.getAvailableRewards();
+    //   console.log("🚀 ~ initialAvailableRewards:", initialAvailableRewards);
+    //   const initialStakedBalance = await stakingContract.getStakedAmountFor(deployerAddress);
+    //   const rewards = await stakingContract.calculateCompoundedRewards();
+
+    //   const amountToUnstake = tokensAmount(10);
+    //   expect(await stakingContract.unstake(amountToUnstake)).to.changeTokenBalances(
+    //     tokenContract,
+    //     [deployerAddress, stakingContract.address],
+    //     [amountToUnstake, amountToUnstake.mul(-1)]
+    //   );
+
+    //   const finalStakedBalance = await stakingContract.getStakedAmountFor(deployerAddress);
+    //   const contractTotalStaked = await stakingContract.getStakedAmount();
+    //   expect(finalStakedBalance).to.equal(initialStakedBalance.sub(amountToUnstake).add(rewards));
+    //   expect(contractTotalStaked).to.equal(initialStakedBalance.sub(amountToUnstake).add(rewards));
+    //   expect(await stakingContract.getAvailableRewards()).to.equal(0);
+    // });
   })
 
   describe('Reward system', () => {
@@ -308,4 +332,32 @@ describe("Staking contract", function () {
       expect(formattedBalance).to.be.closeTo(formattedExpected, 1);
     });
   })
+
+  describe('Emergency withdraw', () => {
+    it('allows to withdraw all the staked tokens when the contract has no available rewards', async () => {
+      const { stakingContract, tokenContract, deployerAddress } = await loadFixture(deployFixture);
+      await approveAndStake(stakingContract, tokenContract, 100);
+
+      expect(await stakingContract.withdrawAll()).to.changeTokenBalances(
+        tokenContract,
+        [deployerAddress, stakingContract.address],
+        [100, -100]
+      );
+
+      expect(await stakingContract.getStakedAmountFor(deployerAddress)).to.equal(0);
+      expect(await stakingContract.getStakedAmount()).to.equal(0);
+    });
+
+    it('reverts when the contract has available rewards', async () => {
+      const { stakingContract, tokenContract } = await loadFixture(deployFixture);
+      await approveAndFundContract(stakingContract, tokenContract, 6);
+      await approveAndStake(stakingContract, tokenContract, 100);
+      await moveTimeForwardInWeeks(52);
+
+      await expect(stakingContract.withdrawAll()).to.revertedWithCustomError(stakingContract, "Staking__HasAvailableRewards");
+    });
+  });
 });
+
+
+
