@@ -34,9 +34,9 @@ contract Staking is Ownable {
      */
     function stake(uint256 _amount) public {
         if (stakers[msg.sender].stakedAmount == 0) {
-            firstStake(_amount);
+            _firstStake(_amount);
         } else {
-            reStake(_amount);
+            _reStake(_amount);
         }
     }
 
@@ -44,13 +44,13 @@ contract Staking is Ownable {
      * @dev Stakes the given amount of tokens
      * @param _amount Amount of tokens to stake
      */
-    function firstStake(uint256 _amount) internal {
-        Token.transferFrom(msg.sender, address(this), _amount);
+    function _firstStake(uint256 _amount) internal {
         stakers[msg.sender].lastUpdated = block.timestamp;
         stakers[msg.sender].stakedAmount = stakers[msg.sender].stakedAmount.add(
             _amount
         );
         totalStaked = totalStaked.add(_amount);
+        Token.transferFrom(msg.sender, address(this), _amount);
     }
 
     /**
@@ -61,8 +61,7 @@ contract Staking is Ownable {
      * has already staked tokens before
      * @param _amount Amount of tokens to stake
      */
-    function reStake(uint256 _amount) internal {
-        Token.transferFrom(msg.sender, address(this), _amount);
+    function _reStake(uint256 _amount) internal {
         uint rewardAmount = calculateCompoundedRewards();
         uint newBalance = stakers[msg.sender]
             .stakedAmount
@@ -72,6 +71,7 @@ contract Staking is Ownable {
         stakers[msg.sender].stakedAmount = newBalance;
         stakers[msg.sender].lastUpdated = block.timestamp;
         totalStaked = totalStaked.add(_amount);
+        Token.transferFrom(msg.sender, address(this), _amount);
     }
 
     /**
@@ -122,14 +122,14 @@ contract Staking is Ownable {
         uint remainingStakingAmount = _maxUnstakableAmount.sub(
             _amountToTransfer
         );
-        Token.transfer(msg.sender, _amountToTransfer);
         stakers[msg.sender].stakedAmount = remainingStakingAmount;
         stakers[msg.sender].lastUpdated = block.timestamp;
         totalStaked = totalStaked.add(_rewardAmount).sub(_amountToTransfer);
+        Token.transfer(msg.sender, _amountToTransfer);
     }
 
     /**
-     * @dev Calculates the compounded rewards for the staker
+     * @dev Calculates the compounded rewards lazily for the staker
      * @return The compounded rewards for the staker
      */
     function calculateCompoundedRewards() public view returns (uint256) {
@@ -162,10 +162,11 @@ contract Staking is Ownable {
             revert Staking__HasAvailableRewards();
         }
 
-        Token.transfer(msg.sender, stakers[msg.sender].stakedAmount);
-        totalStaked = totalStaked.sub(stakers[msg.sender].stakedAmount);
+        uint amountToWithdraw = stakers[msg.sender].stakedAmount;
+        totalStaked = totalStaked.sub(amountToWithdraw);
         stakers[msg.sender].lastUpdated = 0;
         stakers[msg.sender].stakedAmount = 0;
+        Token.transfer(msg.sender, amountToWithdraw);
     }
 
     /**
