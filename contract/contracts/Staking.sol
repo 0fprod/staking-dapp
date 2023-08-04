@@ -4,13 +4,14 @@ pragma solidity ^0.8.11;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 // import {console} from "hardhat/console.sol";
 
 error Staking__InsufficientStakedBalance();
 error Staking__InsufficientContractBalance();
 error Staking__HasAvailableRewards();
 
-contract Staking is Ownable {
+contract Staking is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -32,7 +33,7 @@ contract Staking is Ownable {
      * @dev Stakes the given amount of tokens
      * @param _amount Amount of tokens to stake
      */
-    function stake(uint256 _amount) public {
+    function stake(uint256 _amount) external nonReentrant {
         if (stakers[msg.sender].stakedAmount == 0) {
             _firstStake(_amount);
         } else {
@@ -78,7 +79,7 @@ contract Staking is Ownable {
      * @dev Unstakes the given amount of tokens
      * @param _amountToUnstake Amount of tokens to unstake
      */
-    function unstake(uint256 _amountToUnstake) public {
+    function unstake(uint256 _amountToUnstake) external nonReentrant {
         uint availableRewards = getAvailableRewards();
         uint rewardAmount = calculateCompoundedRewards();
         uint maxUnstakableAmount = stakers[msg.sender].stakedAmount.add(
@@ -154,7 +155,7 @@ contract Staking is Ownable {
      * wants to withdraw all the staked and renounce the rewards
      * because the contract doesn't have enough balance
      */
-    function withdrawAll() public {
+    function withdrawAll() external nonReentrant {
         uint rewardAmount = calculateCompoundedRewards();
         uint availableRewards = getAvailableRewards();
 
