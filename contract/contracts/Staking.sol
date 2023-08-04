@@ -4,8 +4,7 @@ pragma solidity ^0.8.11;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "abdk-libraries-solidity/ABDKMathQuad.sol";
-import {console} from "hardhat/console.sol";
+// import {console} from "hardhat/console.sol";
 
 error Staking__InsufficientStakedBalance();
 error Staking__InsufficientContractBalance();
@@ -178,16 +177,7 @@ contract Staking is Ownable {
         uint amount,
         uint percentage
     ) internal pure returns (uint) {
-        return
-            ABDKMathQuad.toUInt(
-                ABDKMathQuad.div(
-                    ABDKMathQuad.mul(
-                        ABDKMathQuad.fromUInt(amount),
-                        ABDKMathQuad.fromUInt(percentage)
-                    ),
-                    ABDKMathQuad.fromUInt(100)
-                )
-            );
+        return amount.mul(percentage).div(100);
     }
 
     /**
