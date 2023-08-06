@@ -2,6 +2,7 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "@matterlabs/hardhat-zksync-deploy";
 import "@matterlabs/hardhat-zksync-solc";
+import "@matterlabs/hardhat-zksync-verify";
 import 'hardhat-watcher'
 import dotenv from 'dotenv';
 
@@ -17,7 +18,7 @@ const config: HardhatUserConfig = {
     version: "1.3.13", // Uses latest available in https://github.com/matter-labs/zksolc-bin/
     settings: {},
   },
-  defaultNetwork: "hardhat",
+  defaultNetwork: "zkSyncTestnet",
   // networks
   networks: {
     hardhat: {
