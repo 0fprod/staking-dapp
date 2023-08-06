@@ -11,14 +11,14 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.9.2",
-    "@thirdweb-dev/contracts": "^3",
-    "abdk-libraries-solidity": "^3.2.0"
+    "@thirdweb-dev/contracts": "^3"
   },
   "devDependencies": {
     "@ethersproject/abi": "^5.4.7",
     "@ethersproject/providers": "^5.4.7",
     "@matterlabs/hardhat-zksync-deploy": "^0.6.3",
     "@matterlabs/hardhat-zksync-solc": "^0.3.17",
+    "@matterlabs/hardhat-zksync-upgradable": "^0.1.2",
     "@matterlabs/hardhat-zksync-verify": "^0.1.7",
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.0",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.0",

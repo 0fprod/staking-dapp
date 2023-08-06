@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  const tokenAddrss = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+  const tokenAddrss = "0xcbd3161f5C8e39b5d0F800Dd991834F518B1c0fD";
 
   const stakingContract = await ethers.deployContract("Staking", [tokenAddrss]);
   await stakingContract.deployed();
